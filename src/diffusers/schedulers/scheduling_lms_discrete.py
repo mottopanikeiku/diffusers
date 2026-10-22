@@ -603,7 +603,9 @@ class LMSDiscreteScheduler(SchedulerMixin, ConfigMixin):
             self.derivatives.pop(0)
 
         # 3. Compute linear multistep coefficients
-        order = min(self.step_index + 1, order)
+        # Use the number of stored derivatives rather than `step_index`, so that a run starting part-way through the
+        # schedule (e.g. image-to-image with `set_begin_index`) starts with a first-order step.
+        order = min(len(self.derivatives), order)
         lms_coeffs = [self.get_lms_coefficient(order, self.step_index, curr_order) for curr_order in range(order)]
 
         # 4. Compute previous sample based on the derivatives path

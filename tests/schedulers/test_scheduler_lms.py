@@ -166,8 +166,30 @@ class LMSDiscreteSchedulerTest(SchedulerCommonTest):
         result_sum = torch.sum(torch.abs(sample))
         result_mean = torch.mean(torch.abs(sample))
 
-        assert abs(result_sum.item() - 27663.6895) < 1e-2
-        assert abs(result_mean.item() - 36.0204) < 1e-3
+        assert abs(result_sum.item() - 57074.7617) < 1e-2
+        assert abs(result_mean.item() - 74.3161) < 1e-3
+
+    def test_full_loop_with_begin_index(self):
+        # Image-to-image pipelines start part-way through the schedule via `set_begin_index`. With a constant
+        # derivative, every linear multistep step moves the sample by exactly `(sigma_next - sigma) * derivative`.
+        scheduler_class = self.scheduler_classes[0]
+        scheduler_config = self.get_scheduler_config()
+        scheduler = scheduler_class(**scheduler_config)
+
+        scheduler.set_timesteps(self.num_inference_steps)
+        begin_index = self.num_inference_steps // 2
+        scheduler.set_begin_index(begin_index)
+
+        sample = self.dummy_sample_deter
+        # with epsilon prediction the derivative equals the model output
+        model_output = 0.1 * self.dummy_noise_deter
+        expected = sample - scheduler.sigmas[begin_index] * model_output
+
+        for t in scheduler.timesteps[begin_index:]:
+            scheduler.scale_model_input(sample, t)
+            sample = scheduler.step(model_output, t, sample).prev_sample
+
+        assert torch.allclose(sample, expected, atol=1e-4)
 
     def test_beta_sigmas(self):
         self.check_over_configs(use_beta_sigmas=True)
